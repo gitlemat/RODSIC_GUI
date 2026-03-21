@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RODSIC | Professional Trading Terminal</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <link rel="icon" href="assets/favicon.png" type="image/png">
+</head>
+
+<body class="dark-theme">
+    <div id="app" class="glass-container">
+        <!-- Sidebar / Mobile Navigation -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <img src="assets/logo.png" alt="RODSIC" class="logo">
+                <button id="sidebar-toggle" class="btn-icon"><i data-lucide="menu"></i></button>
+            </div>
+            <ul class="nav-links">
+                <li class="active" data-tab="portfolio"><i data-lucide="layout-dashboard"></i> <span>Contracts IB</span>
+                </li>
+                <li data-tab="orders"><i data-lucide="list-ordered"></i> <span>Orders</span></li>
+                <li data-tab="strategies"><i data-lucide="layers"></i> <span>Strategies</span></li>
+                <li data-tab="analysis"><i data-lucide="line-chart"></i> <span>Analysis</span></li>
+                <li data-tab="account"><i data-lucide="wallet"></i> <span>Account</span></li>
+                <li data-tab="settings"><i data-lucide="settings"></i> <span>Settings</span></li>
+            </ul>
+            <div class="account-summary-mini">
+                <div class="label">EQUITY</div>
+                <div class="value" id="mini-equity">$0.00</div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="content-area">
+            <header class="top-bar">
+                <div class="account-info">
+                    <div class="backend-status-group" style="display: flex; gap: 0.8rem;">
+                        <div class="server-status" id="ib-core-service" title="Checking Core Service...">
+                            <span class="status-dot"></span>
+                            <span class="status-text">CORE</span>
+                        </div>
+                        <div class="server-status" id="ib-tws-connection" title="Checking TWS Connection...">
+                            <span class="status-dot"></span>
+                            <span class="status-text">IB_Core</span>
+                        </div>
+                        <div class="server-status" id="strat-health" title="Checking RODSIC_Strat...">
+                            <span class="status-dot"></span>
+                            <span class="status-text">STRAT</span>
+                        </div>
+                    </div>
+                    <div class="user-profile" id="account-selector">
+                        <div class="account-label">
+                            <span id="account-id">Loading...</span>
+                            <i data-lucide="chevron-down" class="dropdown-icon"></i>
+                        </div>
+                        <div class="avatar">S</div>
+
+                        <div class="account-dropdown glass shadow" id="account-dropdown">
+                            <!-- JS Injected -->
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <section id="portfolio" class="tab-content active">
+                <div class="header-row">
+                    <h1>Contracts IB</h1>
+
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card glass shadow">
+                        <div class="label">Total P&L</div>
+                        <div class="value positive" id="stat-pnl">$0.00</div>
+                        <div class="trend" id="stat-pnl-trend">--%</div>
+                    </div>
+                    <div class="stat-card glass shadow">
+                        <div class="label">Daily P&L</div>
+                        <div class="value" id="stat-daily">$0.00</div>
+                        <div class="trend" id="stat-daily-trend">--%</div>
+                    </div>
+                    <div class="stat-card glass shadow">
+                        <div class="label">Margin Used</div>
+                        <div class="value" id="stat-margin">$0.00</div>
+                        <div class="progress-bar">
+                            <div class="fill" id="stat-margin-fill" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="portfolio-table-container glass shadow">
+                    <table class="modern-table">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Type</th>
+                                <th>Position</th>
+                                <th>Avg Cost</th>
+                                <th>Market Price</th>
+                                <th>P&L</th>
+                                <th>Trade</th>
+                            </tr>
+                        </thead>
+                        <tbody id="portfolio-body">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="header-row" style="margin-top: 2rem;">
+                    <h2>WatchList</h2>
+                </div>
+                <div class="portfolio-table-container glass shadow">
+                    <table class="modern-table" id="watchlist-table">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Market Price</th>
+                                <th style="width: 80px;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="watchlist-body">
+                            <!-- Injected by JS -->
+                        </tbody>
+                        <tfoot>
+                            <tr class="add-row">
+                                <td>
+                                    <div class="input-glass-container">
+                                        <input type="text" id="new-watchlist-symbol" class="input-glass"
+                                            placeholder="Add Symbol (e.g. MES MAR 24)"
+                                            onkeypress="handleWatchlistInput(event)">
+                                        <button class="input-icon" onclick="previewWatchlistSymbol()"
+                                            title="Preview Price">
+                                            <i data-lucide="search" style="width: 18px; height: 18px;"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td id="watchlist-preview-price" style="font-family: 'Roboto Mono', monospace;">-</td>
+                                <td class="table-actions">
+                                    <button class="btn-icon success" title="Add to WatchList"
+                                        onclick="addToWatchlist()">
+                                        <i data-lucide="plus-circle"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+            </section>
+
+            <section id="orders" class="tab-content">
+                <div class="header-row">
+                    <h1>Active Orders</h1>
+                    <div class="actions" style="display: flex; gap: 10px;">
+                        <button class="btn-primary" id="btn-refresh-orders"><i data-lucide="refresh-cw"></i>
+                            Refresh</button>
+                        <button class="btn-primary" id="btn-new-order"><i data-lucide="plus"></i> New Order</button>
+                    </div>
+                </div>
+                <div class="portfolio-table-container glass">
+                    <table class="modern-table">
+                        <thead>
+                            <tr>
+                                <th>Order ID</th>
+                                <th>Strategy</th>
+                                <th>Symbol</th>
+                                <th>Side</th>
+                                <th>Status</th>
+                                <th>Filled</th>
+                                <th>Price</th>
+                                <th>Type</th>
+                                <th style="width: 40px; text-align: center;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="active-orders-body">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="strategies" class="tab-content">
+                <div class="header-row">
+                    <h1>Active Strategies</h1>
+                    <button class="btn-primary" onclick="triggerStrategyReload()"><i data-lucide="refresh-cw"></i>
+                        Force Reload</button>
+                </div>
+                <div class="strategies-grid" id="strategies-container">
+                    <!-- Injected by JS -->
+                </div>
+            </section>
+
+            <section id="account" class="tab-content">
+                <div class="header-row">
+                    <h1>Account Summary</h1>
+                </div>
+
+                <!-- KPI Grid -->
+                <div class="stats-grid" id="account-kpi-grid">
+                    <!-- KPI Cards Injected by JS -->
+                </div>
+
+                <!-- Net Liquidation Chart -->
+                <div class="portfolio-table-container glass shadow" style="margin-top: 2rem; padding: 1.5rem;">
+                    <div class="header-row" style="margin-bottom: 1rem;">
+                        <h3>Net Liquidation (1Y)</h3>
+                    </div>
+                    <div id="account-chart" style="min-height: 400px;"></div>
+                </div>
+            </section>
+
+            <section id="settings" class="tab-content">
+                <div class="header-row">
+                    <h1>Environment Configurations</h1>
+                    <button class="btn-primary" onclick="saveGuiSettings()"><i data-lucide="save"></i> Save GUI
+                        Settings</button>
+                </div>
+
+                <div class="strategies-grid">
+                    <!-- GUI Card (Editable) -->
+                    <div class="stat-card glass shadow" style="grid-column: span 2;">
+                        <div class="label" style="font-size: 1.1rem; color: var(--accent-blue); margin-bottom: 1rem;">
+                            RODSIC_GUI (.env)</div>
+                        <form id="gui-settings-form" class="settings-form">
+                            <!-- Injected by JS -->
+                            <div style="color: var(--text-muted); font-style: italic;">Loading...</div>
+                        </form>
+                    </div>
+
+                    <!-- Core Card (Read Only) -->
+                    <div class="stat-card glass shadow">
+                        <div class="label" style="font-size: 1.1rem; color: var(--accent-blue); margin-bottom: 1rem;">
+                            IB_Core (.env)</div>
+                        <div id="core-settings-container" class="settings-readonly-container">
+                            <div style="color: var(--text-muted); font-style: italic;">Loading...</div>
+                        </div>
+                    </div>
+
+                    <!-- Strat Card (Read Only) -->
+                    <div class="stat-card glass shadow">
+                        <div class="label" style="font-size: 1.1rem; color: var(--accent-blue); margin-bottom: 1rem;">
+                            RODSIC_Strat (.env)</div>
+                        <div id="strat-settings-container" class="settings-readonly-container">
+                            <div style="color: var(--text-muted); font-style: italic;">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Modern Trade Modal -->
+        <div id="order-modal" class="modal-overlay">
+            <div class="modal-content trade-modal glass">
+                <div class="trade-header">
+                    <h2>Create Order</h2>
+                    <button class="close-modal"><i data-lucide="x"></i></button>
+                </div>
+
+                <form id="order-form">
+                    <input type="hidden" id="order-sec-type" value="FUT">
+                    <input type="hidden" id="order-action" value="BUY">
+
+                    <div class="trade-body">
+                        <!-- Buy/Sell Toggle -->
+                        <div class="side-toggle">
+                            <button type="button" class="side-btn active buy"
+                                onclick="setOrderExactSide('BUY')">BUY</button>
+                            <button type="button" class="side-btn sell"
+                                onclick="setOrderExactSide('SELL')">SELL</button>
+                        </div>
+
+                        <!-- Symbol (Read-Only) -->
+                        <div class="input-modern-group" style="margin-bottom: 1rem;">
+                            <label>Symbol</label>
+                            <input type="text" id="order-symbol" class="input-modern" placeholder="Symbol" readonly>
+                        </div>
+
+                        <!-- Grid Row 1: Qty & TIF -->
+                        <div class="input-grid">
+                            <div class="input-modern-group">
+                                <label>Quantity</label>
+                                <input type="number" id="order-qty" class="input-modern" value="1" min="1" step="1">
+                            </div>
+                            <div class="input-modern-group">
+                                <label>TIF</label>
+                                <select id="order-tif" class="input-modern">
+                                    <option value="DAY">DAY</option>
+                                    <option value="GTC">GTC</option>
+                                    <option value="IOC">IOC</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Grid Row 2: Type & Price -->
+                        <div class="input-grid">
+                            <div class="input-modern-group">
+                                <label>Order Type</label>
+                                <select id="order-type" class="input-modern" onchange="window.handleOrderTypeChange()">
+                                    <option value="LMT">Limit</option>
+                                    <option value="MKT">Market</option>
+                                    <option value="STP">Stop</option>
+                                    <option value="STP LMT">Stop Lmt</option>
+                                    <option value="TRAIL">Trailing</option>
+                                </select>
+                            </div>
+                            <div class="input-modern-group" id="group-lmt-price">
+                                <label>Limit Price</label>
+                                <input type="number" id="order-lmt-price" class="input-modern" step="0.25"
+                                    placeholder="0.00">
+                            </div>
+                        </div>
+
+                        <!-- Optional Grid Row 3: Aux Price -->
+                        <div class="input-grid" id="group-aux-price" style="display:none;">
+                            <div class="input-modern-group" style="grid-column: span 2;">
+                                <label id="order-aux-label">Stop Price</label>
+                                <input type="number" id="order-aux-price" class="input-modern" step="0.25"
+                                    placeholder="0.00">
+                            </div>
+                        </div>
+
+                        <!-- Estimate Footer -->
+                        <div class="trade-estimate">
+                            <span>Estimated Total</span>
+                            <span class="amount" id="order-total-estimate">--</span>
+                        </div>
+
+                        <button type="submit" class="btn-submit modern">Submit Order</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification system -->
+    <div id="notifications"></div>
+
+    <script src="js/main.js" type="module"></script>
+    <script>
+        // Init Lucide Icons
+        lucide.createIcons();
+    </script>
+</body>
+
+</html>
