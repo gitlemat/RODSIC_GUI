@@ -78,23 +78,30 @@ export function recalculateSpreadPrice(spreadId) {
     if (!spread || !spread.legs) return;
 
     let syntheticPrice = 0;
+    let validLegs = 0;
 
     for (const leg of spread.legs) {
         const legCache = state.marketDataCache[leg.gConId];
-        const p = (legCache && legCache.last) ? legCache.last : 0;
+        let p = (legCache && legCache.last) ? legCache.last : 0;
+        
+        // Fallback to leg's initial lastPrice if no live tick
+        if (p === 0) p = leg.lastPrice || 0;
 
-        if (p === 0) return; // Wait for full data
-
-        let val = p * leg.ratio;
-        if (leg.action === 'SELL') val = -val;
-
-        syntheticPrice += val;
+        if (p !== 0) {
+            let val = p * leg.ratio;
+            if (leg.action === 'SELL') val = -val;
+            syntheticPrice += val;
+            validLegs++;
+        }
     }
 
-    if (!state.marketDataCache[spreadId]) state.marketDataCache[spreadId] = {};
-    state.marketDataCache[spreadId].last = syntheticPrice;
-
-    updateRowPrice(spreadId, 'last', syntheticPrice);
+    // Only update if we have at least partial data. 
+    // If we want it to be perfect, check validLegs === spread.legs.length
+    if (validLegs > 0) {
+        if (!state.marketDataCache[spreadId]) state.marketDataCache[spreadId] = {};
+        state.marketDataCache[spreadId].last = syntheticPrice;
+        updateRowPrice(spreadId, 'last', syntheticPrice);
+    }
 }
 
 export function updateRowPrice(gid, field, val) {
@@ -112,7 +119,8 @@ export function updateRowPrice(gid, field, val) {
 
         if (pState) {
             pState.lastPrice = val;
-            const pnl = (val - pState.avgPrice) * pState.totalQty;
+            const multiplier = pState.multiplier || 1;
+            const pnl = (val - pState.avgPrice) * multiplier * pState.totalQty;
             const pnlCell = document.getElementById(`pnl-${gid}`);
             if (pnlCell) {
                 pnlCell.innerText = `${curSym}${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -130,7 +138,8 @@ export function updateTotalStats() {
         const currentPrice = (state.marketDataCache[item.gid] && state.marketDataCache[item.gid].last)
             ? state.marketDataCache[item.gid].last
             : item.lastPrice;
-        totalPnl += (currentPrice - item.avgPrice) * item.totalQty;
+        const multiplier = item.multiplier || 1;
+        totalPnl += (currentPrice - item.avgPrice) * multiplier * item.totalQty;
     });
 
     const pnlEl = document.getElementById('stat-pnl');
@@ -215,8 +224,9 @@ export function renderPortfolio(contracts) {
         const gid = c.gConId;
         const symbol = c.symbol;
         const avgPrice = accountPositions.length > 0 ? accountPositions[0].avgPrice : 0;
+        const multiplier = c.multiplier || 1;
         const last = c.last || 0;
-        const pnl = (last - avgPrice) * totalQty;
+        const pnl = (last - avgPrice) * multiplier * totalQty;
         const isExpanded = state.expandedRows.has(gid);
 
         let exchangeDisplay = c.exchange || 'N/A';
@@ -226,12 +236,12 @@ export function renderPortfolio(contracts) {
         }
 
         const curSym = getCurrencySymbol(c.currency);
-        state.portfolioState[gid] = { gid, totalQty, avgPrice, currency: c.currency || 'USD', lastPrice: last };
+        state.portfolioState[gid] = { gid, totalQty, avgPrice, currency: c.currency || 'USD', lastPrice: last, multiplier: multiplier };
 
         html += `
             <tr class="main-row ${isExpanded ? 'active' : ''}" onclick="window.toggleRow('${gid}')">
                 <td><div class="symbol-col"><span class="symbol-name">${symbol}</span></div></td>
-                <td>${c.secType}</td>
+                <td><span class="modern-badge" style="font-size:0.7em; padding:2px 6px;">${c.secType}</span></td>
                 <td class="${totalQty >= 0 ? 'positive' : 'negative'}">${totalQty.toFixed(0)}</td>
                 <td>${curSym}${avgPrice.toFixed(2)}</td>
                 <td id="last-${gid}" class="price-cell">${curSym}${last.toFixed(2)}</td>

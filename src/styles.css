@@ -482,6 +482,77 @@ h1 {
     background: rgba(0, 0, 0, 0.2);
 }
 
+/* Strategy Level Alerts & Toolbars */
+.strat-level-alert {
+    background: rgba(255, 107, 107, 0.1);
+    border: 1px solid rgba(255, 107, 107, 0.3);
+    border-left: 4px solid var(--accent-red);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    animation: pulseBorder 2s infinite;
+}
+
+.strat-level-alert i {
+    color: var(--accent-red);
+    width: 20px;
+}
+
+.strat-level-alert .message {
+    flex-grow: 1;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.strat-level-alert .resolution-toolbar {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-resolve {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border: 1px solid transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.btn-resolve.fix {
+    background: var(--accent-red);
+    color: white;
+}
+
+.btn-resolve.fix:hover {
+    background: #FF5252;
+    transform: translateY(-1px);
+}
+
+.btn-resolve.assume {
+    background: var(--accent-green);
+    color: #05070a;
+}
+
+.btn-resolve.assume:hover {
+    background: #00DB88;
+    transform: translateY(-1px);
+}
+
+@keyframes pulseBorder {
+    0% { border-color: rgba(255, 107, 107, 0.3); }
+    50% { border-color: rgba(255, 107, 107, 0.8); }
+    100% { border-color: rgba(255, 107, 107, 0.3); }
+}
+
 .expand-icon {
     width: 40px;
     text-align: center;

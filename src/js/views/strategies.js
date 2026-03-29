@@ -109,6 +109,9 @@ export async function renderStrategiesView() {
             }
         });
 
+        const contract = foundGConId ? state.contractsMap[foundGConId] : null;
+        const multiplier = (contract && contract.multiplier) ? contract.multiplier : 1;
+
         const perf = strat.performance || {};
         const stratPos = perf.netPosition !== undefined ? perf.netPosition : posQty;
         const stratAvg = perf.avgCost !== undefined ? perf.avgCost : avgCost;
@@ -116,7 +119,13 @@ export async function renderStrategiesView() {
 
         let unrealizedPnL = 0.0;
         if (stratPos !== 0 && lastPrice > 0) {
-            unrealizedPnL = (lastPrice - stratAvg) * stratPos;
+            if (perf.avgCost !== undefined) {
+                // Tracker based: price per unit
+                unrealizedPnL = (lastPrice - stratAvg) * stratPos * multiplier;
+            } else {
+                // IB based: total cost
+                unrealizedPnL = (lastPrice * multiplier - stratAvg) * stratPos;
+            }
         }
 
         const statusClass = strat.enabled ? 'active' : 'inactive';
@@ -129,12 +138,21 @@ export async function renderStrategiesView() {
         const pnlClass = realizedPnL >= 0 ? 'text-green' : 'text-red';
         const unPnlClass = unrealizedPnL >= 0 ? 'text-green' : 'text-red';
 
+        // Display Avg Cost as price-per-unit
+        const displayAvg = perf.avgCost !== undefined ? stratAvg : (multiplier !== 0 ? stratAvg / (multiplier * (stratPos || 1)) : 0);
+        // Wait, if stratAvg is total_cost for all positions, then it's (avgPriceIB * qty).
+        // Then avgPriceIB = stratAvg / qty.
+        // And price per unit = avgPriceIB / multiplier = stratAvg / (multiplier * qty).
+        // Actually, in the loop: avgCost += posData.avgCost * posData.pos;
+        // So stratAvg is the sum of (TotalCostPerContract * NumContracts).
+        // Then NormalizedAvg = stratAvg / (multiplier * totalQty).
+
         html += `
             <tr class="strategy-row ${rowClass}" onclick="window.toggleStrategyRow('${safeName}', '${foundGConId}')" style="cursor: pointer;">
                 <td class="expand-icon"><i data-lucide="chevron-right" id="icon-${safeName}"></i></td>
                 <td><span class="symbol-name">${symbol}</span></td>
                 <td style="color: ${stratPos > 0 ? 'var(--accent-green)' : (stratPos < 0 ? 'var(--accent-red)' : 'var(--text-secondary)')}">${stratPos}</td>
-                <td>${formatPrice(stratAvg)}</td>
+                <td>${formatPrice(perf.avgCost !== undefined ? stratAvg : (multiplier !== 0 && stratPos !== 0 ? stratAvg / (multiplier * stratPos) : 0))}</td>
                 <td>${formatPrice(lastPrice)}</td>
                 <td class="${pnlClass}">${formatPrice(realizedPnL)}</td>
                 <td class="${unPnlClass}">${formatPrice(unrealizedPnL)}</td>
@@ -380,6 +398,17 @@ export async function renderStrategyChart(strat, gConId, elementId) {
     state.strategyCharts[strat.name] = state.charts[gConId];
 }
 
+function getFriendlyErrorMessage(status) {
+    if (!status) return null;
+    if (status === 'ERROR_PARENT_CANCELLED') return 'The entry order was cancelled in TWS. The strategy cannot proceed automatically.';
+    if (status === 'ERROR_PARENT_MISSING') return 'The entry order is missing from the system. Re-sync or manual fix required.';
+    if (status === 'ERROR_CHILD_CANCELLED_IN_MARKET') return 'One of the protective orders (TP/SL) was cancelled manually in TWS.';
+    if (status === 'ERROR_CHILDREN_MISSING_IN_MARKET') return 'The protective orders are missing in TWS. The position is unprotected!';
+    if (status === 'ERROR_MISSING_ORDERS') return 'The level state is inconsistent (missing tracked order IDs).';
+    if (status.startsWith('ERROR_')) return `System detected a problem: ${status}. Manual intervention recommended.`;
+    return null;
+}
+
 export function renderStrategyOrders(strat, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -483,24 +512,51 @@ export function renderStrategyOrders(strat, containerId) {
     };
 
     levels.forEach((lvl) => {
+        const errorMsg = getFriendlyErrorMessage(lvl.runtimeStatus);
+        
+        if (errorMsg) {
+            let resolutionButtons = '';
+            
+            // Fix Button
+            resolutionButtons += `<button class="btn-resolve fix" onclick="window.triggerFixLevel('${strat.StratName}', '${strat.symbol}', '${lvl.id}')">
+                <i data-lucide="wrench"></i> Fix Level
+            </button>`;
+            
+            // Assume Executed (Parent)
+            if (['ERROR_PARENT_MISSING', 'ERROR_MISSING_ORDERS', 'ERROR_PARENT_CANCELLED'].includes(lvl.runtimeStatus)) {
+                resolutionButtons += `<button class="btn-resolve assume" onclick="window.triggerAssumeExecuted('${strat.StratName}', '${strat.symbol}', '${lvl.id}', 'PARENT')">
+                    <i data-lucide="check-circle"></i> Assume Executed
+                </button>`;
+            }
+
+            // Assume Executed (Child)
+            if (lvl.runtimeStatus === 'ERROR_CHILD_CANCELLED_IN_MARKET' || lvl.runtimeStatus === 'ERROR_CHILDREN_MISSING_IN_MARKET') {
+                 // Check if it's TP or SL that's missing - usually both are handled by assume executed on child
+                 resolutionButtons += `<button class="btn-resolve assume" onclick="window.triggerAssumeExecuted('${strat.StratName}', '${strat.symbol}', '${lvl.id}', 'CHILD')">
+                    <i data-lucide="check-circle"></i> Assume TP/SL Executed
+                </button>`;
+            }
+
+            html += `
+                <div class="strat-level-alert">
+                    <i data-lucide="alert-triangle"></i>
+                    <div class="message">
+                        <strong>Action Required on Level ${lvl.id}:</strong><br>
+                        ${errorMsg}
+                    </div>
+                    <div class="resolution-toolbar">
+                        ${resolutionButtons}
+                    </div>
+                </div>
+            `;
+        }
+
         if (lvl.parent) {
             const p = lvl.parent;
             const actionClass = (p.action || '').toUpperCase() === 'BUY' ? 'positive' : ((p.action || '').toUpperCase() === 'SELL' ? 'negative' : '');
             let statusBadge = `<span class="badge status-${(p.status || 'unknown').toLowerCase().replace(/[\\/ ()]/g, '')}">${p.status}</span>`;
             if (p.oid === 'Unplaced') statusBadge = `<span class="badge" style="background: rgba(255,255,255,0.1); color: var(--text-secondary);">${p.status}</span>`;
-            let fixButton = '';
-            let assumeParentButton = '';
-            if (lvl.runtimeStatus && lvl.runtimeStatus.startsWith('ERROR_')) {
-                fixButton = `&nbsp; <button onclick="window.triggerFixLevel('${strat.StratName}', '${strat.symbol}', '${lvl.id}')" style="background: var(--accent-red); color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: bold;">[🛠 Fix]</button>`;
-
-                // Allow Assume Executed on Parent Level ONLY if the parent is missing or cancelled, and hasn't actually executed.
-                if (['ERROR_PARENT_MISSING', 'ERROR_MISSING_ORDERS', 'ERROR_PARENT_CANCELLED'].includes(lvl.runtimeStatus)) {
-                    assumeParentButton = `&nbsp; <button onclick="window.triggerAssumeExecuted('${strat.StratName}', '${strat.symbol}', '${lvl.id}', 'PARENT')" style="background: var(--accent-green); color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: bold;">[✅ Assume Executed]</button>`;
-                }
-
-                statusBadge += ` <span style="color:var(--accent-red); font-size: 0.8em; margin-left: 5px;">(${lvl.runtimeStatus})</span>`;
-            }
-
+            
             html += `
                 <tr class="level-parent-row" style="background: rgba(255,255,255,0.05);">
                     <td><strong>LVL ${lvl.id}</strong> &nbsp;<span class="mono" style="color:var(--text-secondary);">(${p.oid || p.orderId})</span></td>
@@ -509,11 +565,11 @@ export function renderStrategyOrders(strat, containerId) {
                     <td>Parent (${p.orderType || '-'})</td>
                     <td>${getPriceDisplay(p)}</td>
                     <td>${p.totalQuantity}</td>
-                    <td>${statusBadge}${fixButton}${assumeParentButton}</td>
+                    <td>${statusBadge}</td>
                 </tr>
             `;
         } else {
-            html += `<tr class="level-parent-row" style="background: rgba(255,0,0,0.05);"><td colspan="7"><strong>LVL ${lvl.id} (Orphaned Orders - No Parent)</strong></td></tr>`;
+            html += `<tr class="level-parent-row" style="background: rgba(255,107,107,0.1);"><td colspan="7"><strong>LVL ${lvl.id} (Orphaned Level - Critical Error)</strong></td></tr>`;
         }
 
         lvl.children.forEach(c => {
@@ -522,15 +578,6 @@ export function renderStrategyOrders(strat, containerId) {
 
             let statusBadge = `<span class="badge status-${(c.status || 'unknown').toLowerCase().replace(/[\\/ ()]/g, '')}">${c.status}</span>`;
             if (c.oid === 'Unplaced') statusBadge = `<span class="badge" style="background: rgba(255,255,255,0.1); color: var(--text-secondary);">${c.status}</span>`;
-            let assumeChildButton = '';
-
-            // Allow Assume Executed on Child Level ONLY if the parent has executed (we are in MONITOR_EXIT)
-            // If the parent is still pending (e.g ERROR_CHILD_CANCELLED or ERROR_CHILDREN_MISSING in MONITOR_ENTRY), it should not show.
-            if (lvl.runtimeStatus && lvl.runtimeStatus.startsWith('ERROR_')) {
-                if (lvl.runtimeStatus === 'ERROR_CHILD_CANCELLED_IN_MARKET' || lvl.runtimeStatus === 'ERROR_CHILDREN_MISSING_IN_MARKET') {
-                    assumeChildButton = `&nbsp; <button onclick="window.triggerAssumeExecuted('${strat.StratName}', '${strat.symbol}', '${lvl.id}', '${childLabel}')" style="background: var(--accent-green); color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: bold;">[✅ Assume ${childLabel}]</button>`;
-                }
-            }
 
             html += `
                 <tr class="level-child-row" style="opacity: 0.9;">
@@ -540,7 +587,7 @@ export function renderStrategyOrders(strat, containerId) {
                     <td>${childLabel} (${c.orderType || '-'})</td>
                     <td>${getPriceDisplay(c)}</td>
                     <td>${c.totalQuantity}</td>
-                    <td>${statusBadge}${assumeChildButton}</td>
+                    <td>${statusBadge}</td>
                 </tr>
             `;
         });
