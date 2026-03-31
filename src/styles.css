@@ -501,6 +501,17 @@ h1 {
     width: 20px;
 }
 
+.strat-level-alert.fixing {
+    background: rgba(0, 122, 255, 0.1);
+    border: 1px solid rgba(0, 122, 255, 0.3);
+    border-left: 4px solid var(--accent-blue);
+    animation: pulseBlue 2s infinite;
+}
+
+.strat-level-alert.fixing i {
+    color: var(--accent-blue);
+}
+
 .strat-level-alert .message {
     flex-grow: 1;
     font-size: 0.9rem;
@@ -527,12 +538,18 @@ h1 {
     letter-spacing: 0.5px;
 }
 
+.btn-resolve:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(1);
+}
+
 .btn-resolve.fix {
     background: var(--accent-red);
     color: white;
 }
 
-.btn-resolve.fix:hover {
+.btn-resolve.fix:hover:not(:disabled) {
     background: #FF5252;
     transform: translateY(-1px);
 }
@@ -542,7 +559,7 @@ h1 {
     color: #05070a;
 }
 
-.btn-resolve.assume:hover {
+.btn-resolve.assume:hover:not(:disabled) {
     background: #00DB88;
     transform: translateY(-1px);
 }
@@ -551,6 +568,21 @@ h1 {
     0% { border-color: rgba(255, 107, 107, 0.3); }
     50% { border-color: rgba(255, 107, 107, 0.8); }
     100% { border-color: rgba(255, 107, 107, 0.3); }
+}
+
+@keyframes pulseBlue {
+    0% { border-color: rgba(0, 122, 255, 0.3); }
+    50% { border-color: rgba(0, 122, 255, 0.8); }
+    100% { border-color: rgba(0, 122, 255, 0.3); }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.icon-spin {
+    animation: spin 2s linear infinite;
 }
 
 .expand-icon {

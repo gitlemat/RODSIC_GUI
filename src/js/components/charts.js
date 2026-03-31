@@ -127,6 +127,15 @@ export function drawChart(chartDiv, history, range, gid, customAnnotations = [])
     const lastPrice = history.length > 0 ? (history[history.length - 1][isOHLC ? 4 : 1]) : 0;
     const annColor = getAnnotationColor(gid, lastPrice);
 
+    const livePriceId = 'live-price-ann-' + gid;
+    const livePriceAnnotation = {
+        id: livePriceId,
+        y: lastPrice,
+        borderColor: annColor,
+        label: { borderColor: annColor, style: { color: '#fff', background: annColor, opacity: 1, fontSize: '11px', fontWeight: 'bold', padding: { left: 4, right: 4, top: 2, bottom: 2 } }, text: lastPrice.toFixed(2), position: 'right', textAnchor: 'start', offsetX: 52 }
+    };
+    const allAnnotations = [...customAnnotations, livePriceAnnotation];
+
     const options = {
         series: seriesData,
         chart: { type: chartType, height: '100%', toolbar: { show: false }, animations: { enabled: false }, background: 'transparent' },
@@ -137,11 +146,7 @@ export function drawChart(chartDiv, history, range, gid, customAnnotations = [])
         dataLabels: { enabled: false },
         annotations: {
             position: 'front',
-            yaxis: customAnnotations.length > 0 ? customAnnotations : [{
-                y: lastPrice,
-                borderColor: annColor,
-                label: { borderColor: annColor, style: { color: '#fff', background: annColor, opacity: 1, fontSize: '11px', fontWeight: 'bold', padding: { left: 4, right: 4, top: 2, bottom: 2 } }, text: lastPrice.toFixed(2), position: 'right', textAnchor: 'start', offsetX: 52 }
-            }]
+            yaxis: allAnnotations
         },
         xaxis: {
             type: xaxisType, tickAmount: tickAmount,
@@ -263,14 +268,21 @@ export function updateChartRealtime(gid, price, timestamp) {
     const chart = state.charts[gid];
     const color = getAnnotationColor(gid, price);
 
-    // Update Price Annotation
+    // Update Price Annotation without destroying custom annotations
+    const livePriceId = 'live-price-ann-' + gid;
+    const currentAnnotations = (chart.w.config.annotations && chart.w.config.annotations.yaxis) ? chart.w.config.annotations.yaxis : [];
+    const newAnnotations = currentAnnotations.filter(a => a.id !== livePriceId);
+    
+    newAnnotations.push({
+        id: livePriceId,
+        y: price, borderColor: color,
+        label: { borderColor: color, style: { color: '#fff', background: color, opacity: 1, fontSize: '11px', fontWeight: 'bold', padding: { left: 4, right: 4, top: 2, bottom: 2 } }, text: price.toFixed(2), position: 'right', textAnchor: 'start', offsetX: 52 }
+    });
+
     chart.updateOptions({
         annotations: {
             position: 'front',
-            yaxis: [{
-                y: price, borderColor: color,
-                label: { borderColor: color, style: { color: '#fff', background: color, opacity: 1, fontSize: '11px', fontWeight: 'bold', padding: { left: 4, right: 4, top: 2, bottom: 2 } }, text: price.toFixed(2), position: 'right', textAnchor: 'start', offsetX: 52 }
-            }]
+            yaxis: newAnnotations
         }
     }, false, false); // No redraw yet
 

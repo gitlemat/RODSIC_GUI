@@ -74,9 +74,15 @@ window.addEventListener('ws:market', (e) => {
 
 // Since updateRowPrice and recalculateSpreadPrice need to be called on tick:
 import { updateRowPrice, recalculateSpreadPrice } from './views/portfolio.js';
+import { updateStrategyRowPrice } from './views/strategies.js';
 window.addEventListener('app:marketTick', (e) => {
     const { gid, field, price } = e.detail;
-    updateRowPrice(gid, field, price);
+    if (field === 'last') {
+        updateRowPrice(gid, field, price);
+        updateStrategyRowPrice(gid, price);
+    } else {
+        updateRowPrice(gid, field, price);
+    }
 
     if (state.legIdToSpreadIds[gid]) {
         state.legIdToSpreadIds[gid].forEach(spreadDep => {

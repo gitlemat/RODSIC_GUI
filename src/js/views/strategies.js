@@ -153,7 +153,7 @@ export async function renderStrategiesView() {
                 <td><span class="symbol-name">${symbol}</span></td>
                 <td style="color: ${stratPos > 0 ? 'var(--accent-green)' : (stratPos < 0 ? 'var(--accent-red)' : 'var(--text-secondary)')}">${stratPos}</td>
                 <td>${formatPrice(perf.avgCost !== undefined ? stratAvg : (multiplier !== 0 && stratPos !== 0 ? stratAvg / (multiplier * stratPos) : 0))}</td>
-                <td>${formatPrice(lastPrice)}</td>
+                <td class="strat-live-price-${(foundGConId || symbol).replace(/[^a-zA-Z0-9]/g, '_')}">${formatPrice(lastPrice)}</td>
                 <td class="${pnlClass}">${formatPrice(realizedPnL)}</td>
                 <td class="${unPnlClass}">${formatPrice(unrealizedPnL)}</td>
                 <td><span class="status-badge ${statusClass}">${strat.enabled ? 'ACTIVE' : 'INACTIVE'}</span></td>
@@ -400,6 +400,7 @@ export async function renderStrategyChart(strat, gConId, elementId) {
 
 function getFriendlyErrorMessage(status) {
     if (!status) return null;
+    if (status === 'FIXING') return 'Recovery in progress... Please wait while the strategy synchronizes with the broker.';
     if (status === 'ERROR_PARENT_CANCELLED') return 'The entry order was cancelled in TWS. The strategy cannot proceed automatically.';
     if (status === 'ERROR_PARENT_MISSING') return 'The entry order is missing from the system. Re-sync or manual fix required.';
     if (status === 'ERROR_CHILD_CANCELLED_IN_MARKET') return 'One of the protective orders (TP/SL) was cancelled manually in TWS.';
@@ -516,32 +517,41 @@ export function renderStrategyOrders(strat, containerId) {
         
         if (errorMsg) {
             let resolutionButtons = '';
+            const isFixing = lvl.runtimeStatus === 'FIXING';
+            const alertClass = isFixing ? 'fixing' : '';
+            const iconName = isFixing ? 'loader' : 'alert-triangle';
+            const iconClass = isFixing ? 'icon-spin' : '';
             
-            // Fix Button
-            resolutionButtons += `<button class="btn-resolve fix" onclick="window.triggerFixLevel('${strat.StratName}', '${strat.symbol}', '${lvl.id}')">
-                <i data-lucide="wrench"></i> Fix Level
-            </button>`;
-            
-            // Assume Executed (Parent)
-            if (['ERROR_PARENT_MISSING', 'ERROR_MISSING_ORDERS', 'ERROR_PARENT_CANCELLED'].includes(lvl.runtimeStatus)) {
-                resolutionButtons += `<button class="btn-resolve assume" onclick="window.triggerAssumeExecuted('${strat.StratName}', '${strat.symbol}', '${lvl.id}', 'PARENT')">
-                    <i data-lucide="check-circle"></i> Assume Executed
+            if (!isFixing) {
+                // Fix Button
+                resolutionButtons += `<button class="btn-resolve fix" onclick="window.triggerFixLevel('${strat.StratName}', '${strat.symbol}', '${lvl.id}', this)">
+                    <i data-lucide="wrench"></i> Fix Level
                 </button>`;
-            }
+                
+                // Assume Executed (Parent)
+                if (['ERROR_PARENT_MISSING', 'ERROR_MISSING_ORDERS', 'ERROR_PARENT_CANCELLED'].includes(lvl.runtimeStatus)) {
+                    resolutionButtons += `<button class="btn-resolve assume" onclick="window.triggerAssumeExecuted('${strat.StratName}', '${strat.symbol}', '${lvl.id}', 'PARENT', this)">
+                        <i data-lucide="check-circle"></i> Assume Executed
+                    </button>`;
+                }
 
-            // Assume Executed (Child)
-            if (lvl.runtimeStatus === 'ERROR_CHILD_CANCELLED_IN_MARKET' || lvl.runtimeStatus === 'ERROR_CHILDREN_MISSING_IN_MARKET') {
-                 // Check if it's TP or SL that's missing - usually both are handled by assume executed on child
-                 resolutionButtons += `<button class="btn-resolve assume" onclick="window.triggerAssumeExecuted('${strat.StratName}', '${strat.symbol}', '${lvl.id}', 'CHILD')">
-                    <i data-lucide="check-circle"></i> Assume TP/SL Executed
+                // Assume Executed (Child)
+                if (lvl.runtimeStatus === 'ERROR_CHILD_CANCELLED_IN_MARKET' || lvl.runtimeStatus === 'ERROR_CHILDREN_MISSING_IN_MARKET') {
+                     resolutionButtons += `<button class="btn-resolve assume" onclick="window.triggerAssumeExecuted('${strat.StratName}', '${strat.symbol}', '${lvl.id}', 'CHILD', this)">
+                        <i data-lucide="check-circle"></i> Assume TP/SL Executed
+                    </button>`;
+                }
+            } else {
+                resolutionButtons += `<button class="btn-resolve fix" disabled>
+                    <i data-lucide="loader" class="icon-spin"></i> Fixing...
                 </button>`;
             }
 
             html += `
-                <div class="strat-level-alert">
-                    <i data-lucide="alert-triangle"></i>
+                <div class="strat-level-alert ${alertClass}">
+                    <i data-lucide="${iconName}" class="${iconClass}"></i>
                     <div class="message">
-                        <strong>Action Required on Level ${lvl.id}:</strong><br>
+                        <strong>${isFixing ? 'Recovery in progress' : 'Action Required'} on Level ${lvl.id}:</strong><br>
                         ${errorMsg}
                     </div>
                     <div class="resolution-toolbar">
@@ -692,44 +702,79 @@ export async function toggleStrategyAutoFix(stratName, symbol, currentStatus, ch
     }
 }
 
-export async function triggerFixLevel(stratName, symbol, lid) {
+export async function triggerFixLevel(stratName, symbol, lid, buttonElem) {
     if (!confirm(`Are you sure you want to cancel any hanging orders and recreate Level ${lid} from scratch?`)) {
         return;
+    }
+
+    if (buttonElem) {
+        buttonElem.disabled = true;
+        buttonElem.innerHTML = '<i data-lucide="loader" class="icon-spin"></i> Fixing...';
+        if (window.lucide) window.lucide.createIcons();
     }
 
     try {
         const { triggerManualFixServer } = await import('../services/api.js');
         const res = await triggerManualFixServer(stratName, symbol, lid);
         if (res.status === 'success') {
-            alert(`Level ${lid} fix initiated successfully.`);
             await refreshStrategies();
         } else {
             alert(`Failed to trigger fix: ${res.detail || res.error || 'Unknown error'}`);
+            if (buttonElem) buttonElem.disabled = false;
         }
     } catch (err) {
         console.error("Trigger Fix error:", err);
         alert(`Failed to trigger fix: ${err.message}`);
+        if (buttonElem) buttonElem.disabled = false;
     }
 }
 
-export async function triggerAssumeExecuted(stratName, symbol, lid, orderType) {
+export async function triggerAssumeExecuted(stratName, symbol, lid, orderType, buttonElem) {
     if (!confirm(`WARNING: Are you sure you want to inject a synthetic fill for the ${orderType} order of Level ${lid}? This will adjust your tracker but not send any real orders to IB. Make sure you verified the execution in TWS first.`)) {
         return;
+    }
+
+    if (buttonElem) {
+        buttonElem.disabled = true;
+        buttonElem.innerHTML = '<i data-lucide="loader" class="icon-spin"></i> Processing...';
+        if (window.lucide) window.lucide.createIcons();
     }
 
     try {
         const { assumeOrderExecutedServer } = await import('../services/api.js');
         const res = await assumeOrderExecutedServer(stratName, symbol, lid, orderType);
         if (res.status === 'success') {
-            alert(`Injected synthetic execution for ${orderType} on Level ${lid}.`);
             await refreshStrategies();
         } else {
             alert(`Failed to assume execution: ${res.detail || res.error || 'Unknown error'}`);
+            if (buttonElem) buttonElem.disabled = false;
         }
     } catch (err) {
         console.error("Assume Executed error:", err);
         alert(`Failed to execute synthetic fill: ${err.message}`);
+        if (buttonElem) buttonElem.disabled = false;
     }
 }
 window.triggerFixLevel = triggerFixLevel;
 window.triggerAssumeExecuted = triggerAssumeExecuted;
+
+// Listen for real-time order updates to keep Strategy Order tables fresh
+window.addEventListener('ws:orders:delta', () => {
+    refreshStrategyOrdersAll();
+});
+window.addEventListener('ws:orders:full', () => {
+    refreshStrategyOrdersAll();
+});
+
+export function updateStrategyRowPrice(gid, price) {
+    const safeGid = gid.replace(/[^a-zA-Z0-9]/g, '_');
+    const cells = document.querySelectorAll('.strat-live-price-' + safeGid);
+    cells.forEach(cell => {
+        if (cell) {
+            cell.innerText = formatPrice(price);
+            cell.classList.remove('update-flash');
+            void cell.offsetWidth; // trigger reflow for animation
+            cell.classList.add('update-flash');
+        }
+    });
+}
