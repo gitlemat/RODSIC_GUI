@@ -304,7 +304,17 @@ export function renderWatchlist() {
             if (match) data = state.contractsMap[match];
         }
 
-        const lastPrice = (data && data.last !== undefined) ? data.last : null;
+        let lastPrice = (data && data.last !== undefined && data.last !== 0) ? data.last : null;
+        const bid = (data && data.bid !== undefined) ? data.bid : null;
+        const ask = (data && data.ask !== undefined) ? data.ask : null;
+        
+        // Fallback for missing LAST
+        if (!lastPrice || lastPrice === 0) {
+            if (bid && ask && bid > 0 && ask > 0) lastPrice = (bid + ask) / 2;
+            else if (bid && bid > 0) lastPrice = bid;
+            else if (ask && ask > 0) lastPrice = ask;
+        }
+
         const isBAG = (data && data.secType === 'BAG');
         const showPrice = (lastPrice !== null) && (lastPrice !== 0 || isBAG);
         let priceClass = 'neutral';
@@ -312,7 +322,7 @@ export function renderWatchlist() {
         html += `
             <tr>
                 <td><span class="symbol-name">${symbol}</span></td>
-                <td class="${priceClass}">${showPrice ? parseFloat(lastPrice).toFixed(2) : '-'}</td>
+                <td class="${priceClass}">${showPrice ? parseFloat(lastPrice).toFixed(3) : '-'}</td>
                 <td class="table-actions">
                     <button class="btn-icon danger" title="Remove" onclick="window.removeFromWatchlist('${symbol}')">
                         <i data-lucide="trash-2"></i>
@@ -358,7 +368,16 @@ export async function previewWatchlistSymbol() {
             priceCell.style.color = 'var(--accent-red)';
             alert(`Error: ${syncData.detail}`);
         } else if (syncData.ticks) {
-            const last = syncData.ticks.last || 0;
+            const ticks = syncData.ticks;
+            let last = ticks.last || 0;
+            
+            // Fallback for missing LAST in preview
+            if (last === 0) {
+                if (ticks.bid && ticks.ask) last = (ticks.bid + ticks.ask) / 2;
+                else if (ticks.bid) last = ticks.bid;
+                else if (ticks.ask) last = ticks.ask;
+            }
+
             priceCell.innerText = parseFloat(last).toFixed(3);
             priceCell.style.color = 'var(--accent-green)';
 
