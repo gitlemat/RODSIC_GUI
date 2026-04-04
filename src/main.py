@@ -35,6 +35,7 @@ BUCKET_PRICES_1H = os.getenv("INFLUXDB_BUCKET_PRICES_1H", "ib_prices_1h")
 # BUCKET_DATA removed (using 'ib_data_lab' as default fallback)
 BUCKET_DATA_LIVE = os.getenv("INFLUXDB_BUCKET_DATA_LIVE", "ib_data_live")
 BUCKET_DATA_PAPER = os.getenv("INFLUXDB_BUCKET_DATA_PAPER", "ib_data_paper")
+BUCKET_HISTORIC = os.getenv("INFLUXDB_BUCKET_HISTORIC", "historic_data")
 
 def get_bucket_for_account(account_id: str) -> str:
     """
@@ -460,6 +461,215 @@ async def get_account_history(req: AccountHistoryRequest = Body(...)):
     except Exception as e:
         print(f"Account History Error: {e}")
         return []
+    finally:
+        client.close()
+
+# --- Spread Analysis (Seasonal Butterfly) ---
+
+PRODUCT_MONTHS = {
+    "HE": ["G", "J", "K", "M", "N", "Q", "V", "Z"],
+    "LE": ["G", "J", "M", "Q", "V", "Z"],
+    "GF": ["F", "H", "J", "K", "Q", "U", "V", "X"],
+    "CC": ["H", "K", "N", "U", "Z"],
+    "KC": ["H", "K", "N", "U", "Z"],
+    "CT": ["H", "K", "N", "V", "Z"],
+    "SB": ["H", "K", "N", "V"],
+    "C":  ["H", "K", "N", "U", "Z"],
+    "S":  ["F", "H", "K", "N", "Q", "U", "X"],
+    "W":  ["H", "K", "N", "U", "Z"],
+    "CL": ["F", "G", "H", "J", "K", "M", "N", "Q", "U", "V", "X", "Z"],
+    "NG": ["F", "G", "H", "J", "K", "M", "N", "Q", "U", "V", "X", "Z"],
+    "RB": ["F", "G", "H", "J", "K", "M", "N", "Q", "U", "V", "X", "Z"],
+    "HO": ["F", "G", "H", "J", "K", "M", "N", "Q", "U", "V", "X", "Z"],
+}
+
+class SpreadAnalysisRequest(BaseModel):
+    product: str
+    distance: int = 1
+
+@app.post("/api/analysis/spreads")
+async def get_spread_analysis(req: SpreadAnalysisRequest = Body(...)):
+    product = req.product.upper()
+    distance = req.distance
+    
+    if product not in PRODUCT_MONTHS:
+        raise HTTPException(status_code=400, detail=f"Product {product} month cycle not defined.")
+        
+    months = PRODUCT_MONTHS[product]
+    num_months = len(months)
+    
+    # Generate butterfly combinations
+    # (Leg1, Leg2, Leg3)
+    combinations = []
+    for i in range(num_months):
+        idx1 = i
+        idx2 = (i + distance) % num_months
+        idx3 = (i + 2 * distance) % num_months
+        combinations.append((months[idx1], months[idx2], months[idx3]))
+        
+    client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+    query_api = client.query_api()
+    
+    try:
+        results = []
+        
+        for combo in combinations:
+            m1, m2, m3 = combo
+            
+            # Calculate year offsets based on month cycle
+            idx1 = months.index(m1)
+            idx2 = months.index(m2)
+            idx3 = months.index(m3)
+            
+            off2 = 1 if idx2 <= idx1 else 0
+            off3 = off2 + (1 if idx3 <= idx2 else 0)
+            
+            # Use more descriptive name if years cross
+            l1_label = f"{product}{m1}"
+            l2_label = f"{product}{m2}" + (f"+{off2}Y" if off2 > 0 else "")
+            l3_label = f"{product}{m3}" + (f"+{off3}Y" if off3 > 0 else "")
+            
+            combo_name = f"{l1_label}-2{l2_label}+{l3_label}"
+            
+            # For each combo, we need to find all available years in Flux
+            # We'll use a regex to find all symbols matching the product+month pattern
+            regex_pattern = f"^{product}({m1}|{m2}|{m3})[0-9][0-9]$"
+            
+            # First, get all distinct symbols in the bucket for these 3 months
+            # This is to know which years are available
+            find_symbols_query = f'''
+            import "strings"
+            from(bucket: "{BUCKET_HISTORIC}")
+              |> range(start: -20y)
+              |> filter(fn: (r) => r["_measurement"] == "precios")
+              |> filter(fn: (r) => r["symbol"] =~ /{regex_pattern}/)
+              |> keep(columns: ["symbol"])
+              |> distinct(column: "symbol")
+            '''
+            
+            # Use .query() instead of .query_data_frame() to avoid pivoting warnings for simple lists
+            tables = query_api.query(find_symbols_query)
+            available_symbols = []
+            for table in tables:
+                for record in table.records:
+                    available_symbols.append(record["symbol"])
+            
+            if not available_symbols:
+                continue
+            
+            # Group by year
+            # Influx naming: HEG26
+            years = set()
+            for s in available_symbols:
+                year_part = s[-2:] # Last two digits
+                years.add(year_part)
+                
+            years = sorted(list(years))
+            
+            # Only consider "start years" that have all legs in their respective years
+            valid_start_years = []
+            for y_str in years:
+                y_int = int(y_str)
+                y1 = y_str
+                y2 = f"{(y_int + off2) % 100:02d}"
+                y3 = f"{(y_int + off3) % 100:02d}"
+                
+                if f"{product}{m1}{y1}" in available_symbols and \
+                   f"{product}{m2}{y2}" in available_symbols and \
+                   f"{product}{m3}{y3}" in available_symbols:
+                    valid_start_years.append(y1)
+            
+            if not valid_start_years:
+                continue
+                
+            # Now fetch data for all valid start years
+            # We query all specific leg symbols for all valid start years
+            all_required_legs = []
+            for y_str in valid_start_years:
+                y_int = int(y_str)
+                all_required_legs.append(f"{product}{m1}{y_str}")
+                all_required_legs.append(f"{product}{m2}{(y_int + off2) % 100:02d}")
+                all_required_legs.append(f"{product}{m3}{(y_int + off3) % 100:02d}")
+                
+            legs_regex = "|".join(all_required_legs)
+            
+            query_data = f'''
+            from(bucket: "{BUCKET_HISTORIC}")
+              |> range(start: -20y)
+              |> filter(fn: (r) => r["_measurement"] == "precios")
+              |> filter(fn: (r) => r["_field"] == "close")
+              |> filter(fn: (r) => r["symbol"] =~ /^{legs_regex}$/)
+              |> aggregateWindow(every: 1d, fn: last, createEmpty: false)
+              |> pivot(rowKey:["_time"], columnKey:["symbol"], valueColumn:"_value")
+              |> sort(columns: ["_time"])
+            '''
+            
+            df = query_api.query_data_frame(query_data)
+            if isinstance(df, list): df = pd.concat(df) if df else pd.DataFrame()
+            
+            if df.empty:
+                continue
+                
+            df['_time'] = pd.to_datetime(df['_time'])
+            
+            # Process each starting year
+            series_by_year = {}
+            target_year_val = 2000 + int(valid_start_years[-1]) # Use latest start year as baseline for alignment
+            
+            for y_str in valid_start_years:
+                y_int = int(y_str)
+                y_num = 2000 + y_int
+                
+                leg1 = f"{product}{m1}{y_str}"
+                leg2 = f"{product}{m2}{(y_int + off2) % 100:02d}"
+                leg3 = f"{product}{m3}{(y_int + off3) % 100:02d}"
+                
+                # Filter rows where we have all 3 legs
+                cols = [leg1, leg2, leg3]
+                year_df = df[['_time'] + [c for c in cols if c in df.columns]].dropna()
+                
+                if year_df.empty:
+                    continue
+                    
+                # Calculate synthetic spread: L1 - 2*L2 + L3
+                # Explicitly cast to float to prevent integer rounding issues
+                l1_vals = pd.to_numeric(year_df[leg1], errors='coerce').astype(float)
+                l2_vals = pd.to_numeric(year_df[leg2], errors='coerce').astype(float)
+                l3_vals = pd.to_numeric(year_df[leg3], errors='coerce').astype(float)
+                
+                year_df['value'] = l1_vals - 2 * l2_vals + l3_vals
+                
+                # ALIGNMENT: 
+                # Add (target_year_val - y_num) years to each timestamp
+                year_offset = target_year_val - y_num
+                
+                chart_data = []
+                for _, row in year_df.iterrows():
+                    ts = row['_time']
+                    # Simple year offset for alignment
+                    try:
+                        aligned_ts = ts.replace(year=ts.year + year_offset, hour=0, minute=0, second=0, microsecond=0)
+                    except ValueError:
+                        # Handle Feb 29 leap years
+                        aligned_ts = ts.replace(year=ts.year + year_offset, day=28, hour=0, minute=0, second=0, microsecond=0)
+                        
+                    t_ms = int(aligned_ts.timestamp() * 1000)
+                    chart_data.append([t_ms, float(row['value'])])
+                    
+                series_by_year[f"20{y_str}"] = chart_data
+                
+            if series_by_year:
+                results.append({
+                    "combination": combo_name,
+                    "legs": [l1_label, f"2{l2_label}", l3_label],
+                    "series": series_by_year
+                })
+                
+        return results
+        
+    except Exception as e:
+        logger.error(f"Spread Analysis Error: {e}", exc_info=True)
+        return {"error": str(e)}
     finally:
         client.close()
 

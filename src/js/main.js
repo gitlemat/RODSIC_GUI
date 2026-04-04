@@ -8,6 +8,7 @@ import { renderAccountView } from './views/account.js';
 import { renderOrders, refreshOrders, handleCancel, toggleOrderRow } from './views/orders.js';
 import { refreshStrategies, triggerStrategyReload, toggleStrategyRow, toggleStrategyStatus, toggleStrategyRecreate } from './views/strategies.js';
 import { loadSettings, saveGuiSettings } from './views/settings.js';
+import { renderAnalysisView } from './views/analysis.js';
 import { openTradeModal, openModifyOrder, setOrderExactSide, handleOrderTypeChange } from './components/modals.js';
 import { updateChartRealtime } from './components/charts.js';
 
@@ -298,6 +299,7 @@ function initApp() {
                     renderAccountView();
                 }
                 if (state.currentTab === 'strategies') refreshStrategies();
+                if (state.currentTab === 'analysis') renderAnalysisView();
                 if (state.currentTab === 'settings') loadSettings();
             });
         });

@@ -1180,6 +1180,35 @@ input:disabled+.slider {
 }
 
 /* Hide underlying labels logic - forcing background to be truly opaque */
+/* ApexCharts Toolbar Styling */
+.apexcharts-toolbar {
+    top: 8px !important;
+    right: 12px !important;
+    z-index: 10;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+}
+
+.apexcharts-canvas:hover .apexcharts-toolbar {
+    opacity: 1;
+}
+
+.apexcharts-toolbar svg {
+    fill: var(--text-secondary) !important;
+    width: 18px;
+    height: 18px;
+}
+
+.apexcharts-toolbar svg:hover {
+    fill: var(--text-primary) !important;
+}
+
+.apexcharts-menu {
+    background: var(--bg-deep) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
 .apexcharts-yaxis-label {
     z-index: 1 !important;
 }

@@ -32,7 +32,7 @@
                 </li>
                 <li data-tab="orders"><i data-lucide="list-ordered"></i> <span>Orders</span></li>
                 <li data-tab="strategies"><i data-lucide="layers"></i> <span>Strategies</span></li>
-                <li data-tab="analysis"><i data-lucide="line-chart"></i> <span>Analysis</span></li>
+                <li data-tab="analysis"><i data-lucide="line-chart"></i> <span>Analisis Spreads</span></li>
                 <li data-tab="account"><i data-lucide="wallet"></i> <span>Account</span></li>
                 <li data-tab="settings"><i data-lucide="settings"></i> <span>Settings</span></li>
             </ul>
@@ -223,39 +223,49 @@
             </section>
 
             <section id="settings" class="tab-content">
+...
+            </section>
+
+            <section id="analysis" class="tab-content">
                 <div class="header-row">
-                    <h1>Environment Configurations</h1>
-                    <button class="btn-primary" onclick="saveGuiSettings()"><i data-lucide="save"></i> Save GUI
-                        Settings</button>
+                    <h1>Analisis Spreads (Seasonal Butterflies)</h1>
+                    <div class="analysis-controls glass shadow" style="display: flex; gap: 1rem; align-items: flex-end; padding: 1rem; border-radius:12px;">
+                        <div class="input-modern-group">
+                            <label>Product</label>
+                            <select id="analysis-product" class="input-modern">
+                                <option value="HE">HE (Lean Hogs)</option>
+                                <option value="LE">LE (Live Cattle)</option>
+                                <option value="GF">GF (Feeder Cattle)</option>
+                                <option value="CC">CC (Cocoa)</option>
+                                <option value="KC">KC (Coffee)</option>
+                                <option value="CT">CT (Cotton)</option>
+                                <option value="SB">SB (Sugar #11)</option>
+                                <option value="C">C (Corn)</option>
+                                <option value="S">S (Soybeans)</option>
+                                <option value="W">W (Wheat)</option>
+                                <option value="CL">CL (Crude Oil)</option>
+                                <option value="NG">NG (Natural Gas)</option>
+                            </select>
+                        </div>
+                        <div class="input-modern-group">
+                            <label>Distance</label>
+                            <select id="analysis-distance" class="input-modern">
+                                <option value="1">1 (Consecutive)</option>
+                                <option value="2">2 (Skip 1)</option>
+                                <option value="3">3 (Skip 2)</option>
+                            </select>
+                        </div>
+                        <button class="btn-primary" onclick="window.loadSpreadAnalysis()" style="height: 42px;">
+                            <i data-lucide="play"></i> Analyze
+                        </button>
+                    </div>
                 </div>
 
-                <div class="strategies-grid">
-                    <!-- GUI Card (Editable) -->
-                    <div class="stat-card glass shadow" style="grid-column: span 2;">
-                        <div class="label" style="font-size: 1.1rem; color: var(--accent-blue); margin-bottom: 1rem;">
-                            RODSIC_GUI (.env)</div>
-                        <form id="gui-settings-form" class="settings-form">
-                            <!-- Injected by JS -->
-                            <div style="color: var(--text-muted); font-style: italic;">Loading...</div>
-                        </form>
-                    </div>
-
-                    <!-- Core Card (Read Only) -->
-                    <div class="stat-card glass shadow">
-                        <div class="label" style="font-size: 1.1rem; color: var(--accent-blue); margin-bottom: 1rem;">
-                            IB_Core (.env)</div>
-                        <div id="core-settings-container" class="settings-readonly-container">
-                            <div style="color: var(--text-muted); font-style: italic;">Loading...</div>
-                        </div>
-                    </div>
-
-                    <!-- Strat Card (Read Only) -->
-                    <div class="stat-card glass shadow">
-                        <div class="label" style="font-size: 1.1rem; color: var(--accent-blue); margin-bottom: 1rem;">
-                            RODSIC_Strat (.env)</div>
-                        <div id="strat-settings-container" class="settings-readonly-container">
-                            <div style="color: var(--text-muted); font-style: italic;">Loading...</div>
-                        </div>
+                <div id="analysis-charts-container" class="analysis-grid" style="margin-top: 2rem; display: flex; flex-direction: column; gap: 2rem;">
+                    <!-- Charts will be injected here -->
+                    <div class="empty-state" style="text-align: center; color: var(--text-muted); padding: 4rem;">
+                        <i data-lucide="line-chart" style="width: 48px; height: 48px; margin-bottom: 1rem; opacity: 0.3;"></i>
+                        <p>Select a product and distance to start the seasonal analysis.</p>
                     </div>
                 </div>
             </section>

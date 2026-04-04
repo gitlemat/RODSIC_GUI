@@ -183,3 +183,13 @@ export async function fetchContractSync(symbol) {
     const res = await fetch(`${API_BASE}/contract/sync/${encodeURIComponent(symbol)}`);
     return res.json();
 }
+
+export async function fetchSpreadAnalysis(product, distance) {
+    const res = await fetch(`${API_BASE}/analysis/spreads`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product, distance })
+    });
+    return res.json();
+}
+

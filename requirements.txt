@@ -3,3 +3,8 @@ uvicorn
 requests
 pydantic
 websockets
+pandas
+influxdb-client
+pytz
+Pillow
+python-dotenv
