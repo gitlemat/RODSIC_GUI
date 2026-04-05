@@ -2,7 +2,7 @@
 import { state } from '../core/state.js';
 import { getCurrencySymbol } from '../utils/formatters.js';
 import { updateChart } from '../components/charts.js';
-import { fetchContractSync, saveWatchlist, deleteFromWatchlist } from '../services/api.js';
+import { fetchContractSync, saveWatchlist, deleteFromWatchlist, requestLatestPrices } from '../services/api.js';
 
 export function updateAccountSummary(accounts) {
     if (!accounts || Object.keys(accounts).length === 0) return;
@@ -225,7 +225,12 @@ export function renderPortfolio(contracts) {
         const symbol = c.symbol;
         const avgPrice = accountPositions.length > 0 ? accountPositions[0].avgPrice : 0;
         const multiplier = c.multiplier || 1;
-        const last = c.last || 0;
+        
+        // Use memory cache first (which recalculateSpreadPrice just populated for bags), then fallback to API snapshot
+        const last = (state.marketDataCache[gid] && state.marketDataCache[gid].last) 
+            ? state.marketDataCache[gid].last 
+            : (c.last || 0);
+
         const pnl = (last - avgPrice) * multiplier * totalQty;
         const isExpanded = state.expandedRows.has(gid);
 
@@ -288,6 +293,53 @@ export function renderPortfolio(contracts) {
     tbody.innerHTML = html;
     if (window.lucide) window.lucide.createIcons();
     updateTotalStats();
+
+    // Now that the DOM is ready, request baseline prices from InfluxDB for zero-value contracts & legs
+    const neededIds = new Set();
+    Object.values(state.contractsMap).forEach(c => {
+        if (!c.gConId) return;
+        neededIds.add(c.gConId.toString());
+        if (c.secType === 'BAG' && c.legs) {
+            c.legs.forEach(leg => leg.gConId && neededIds.add(leg.gConId.toString()));
+        }
+    });
+
+    if (neededIds.size > 0) {
+        requestLatestPrices(Array.from(neededIds)).then(prices => {
+            if (!prices || Object.keys(prices).length === 0) return;
+            
+            let needsSpreadRecalc = false;
+            let needsTotalStats = false;
+            
+            Object.entries(prices).forEach(([gConId, price]) => {
+                if (!state.marketDataCache[gConId]) state.marketDataCache[gConId] = {};
+                // Only overwrite if it was 0 or missing (don't overwrite fresh websocket ticks if they beat the db query)
+                if (!state.marketDataCache[gConId].last) {
+                    state.marketDataCache[gConId].last = price;
+                    
+                    if (state.legIdToSpreadIds[gConId]) {
+                        needsSpreadRecalc = true;
+                    }
+                    if (state.portfolioState[gConId]) {
+                        updateRowPrice(gConId, 'last', price);
+                        needsTotalStats = true;
+                    }
+                }
+            });
+
+            if (needsSpreadRecalc) {
+                // If leg prices were updated from DB, recalculate any BAG that relies on them
+                Object.values(state.contractsMap).forEach(c => {
+                    if (c.secType === 'BAG') {
+                        recalculateSpreadPrice(c.gConId);
+                    }
+                });
+            }
+            if (needsTotalStats) {
+                updateTotalStats();
+            }
+        }).catch(err => console.error("Failed to load baseline prices", err));
+    }
 }
 
 export function renderWatchlist() {

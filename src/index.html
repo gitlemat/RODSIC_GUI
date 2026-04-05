@@ -28,13 +28,38 @@
                 <button id="sidebar-toggle" class="btn-icon"><i data-lucide="menu"></i></button>
             </div>
             <ul class="nav-links">
-                <li class="active" data-tab="portfolio"><i data-lucide="layout-dashboard"></i> <span>Contracts IB</span>
+                <!-- Group: IB Ops -->
+                <li class="nav-group open">
+                    <div class="nav-group-header" onclick="toggleNavGroup(this)">
+                        <div class="header-content">
+                            <i data-lucide="server"></i> <span>IB Ops</span>
+                        </div>
+                        <i data-lucide="chevron-down" class="group-chevron"></i>
+                    </div>
+                    <ul class="nav-group-links">
+                        <li class="active" data-tab="portfolio"><i data-lucide="layout-dashboard"></i> <span>Contracts IB</span></li>
+                        <li data-tab="orders"><i data-lucide="list-ordered"></i> <span>Orders</span></li>
+                        <li data-tab="strategies"><i data-lucide="layers"></i> <span>Strategies</span></li>
+                        <li data-tab="account"><i data-lucide="wallet"></i> <span>Account</span></li>
+                    </ul>
                 </li>
-                <li data-tab="orders"><i data-lucide="list-ordered"></i> <span>Orders</span></li>
-                <li data-tab="strategies"><i data-lucide="layers"></i> <span>Strategies</span></li>
-                <li data-tab="analysis"><i data-lucide="line-chart"></i> <span>Analisis Spreads</span></li>
-                <li data-tab="account"><i data-lucide="wallet"></i> <span>Account</span></li>
-                <li data-tab="settings"><i data-lucide="settings"></i> <span>Settings</span></li>
+
+                <!-- Group: Analytics -->
+                <li class="nav-group open">
+                    <div class="nav-group-header" onclick="toggleNavGroup(this)">
+                        <div class="header-content">
+                            <i data-lucide="bar-chart-2"></i> <span>Analytics</span>
+                        </div>
+                        <i data-lucide="chevron-down" class="group-chevron"></i>
+                    </div>
+                    <ul class="nav-group-links">
+                        <li data-tab="analysis"><i data-lucide="line-chart"></i> <span>Analisis Spreads</span></li>
+                        <li data-tab="gestiondb"><i data-lucide="database"></i> <span>Gestion DB</span></li>
+                    </ul>
+                </li>
+
+                <div class="nav-spacer"></div>
+                <li data-tab="settings" class="standalone-tab"><i data-lucide="settings"></i> <span>Settings</span></li>
             </ul>
             <div class="account-summary-mini">
                 <div class="label">EQUITY</div>
@@ -219,6 +244,16 @@
                         <h3>Net Liquidation (1Y)</h3>
                     </div>
                     <div id="account-chart" style="min-height: 400px;"></div>
+                </div>
+            </section>
+
+            <section id="gestiondb" class="tab-content">
+                <div class="header-row">
+                    <h1>Gestion InfluxDB</h1>
+                </div>
+                <div class="portfolio-table-container glass shadow" style="padding: 2rem; text-align: center;">
+                    <i data-lucide="database" style="width: 48px; height: 48px; opacity: 0.2; margin-bottom: 1rem;"></i>
+                    <p style="color: var(--text-muted);">Herramientas de gestión de base de datos en construcción.</p>
                 </div>
             </section>
 

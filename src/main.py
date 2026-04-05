@@ -181,6 +181,45 @@ async def websocket_proxy(websocket: WebSocket):
         proxy.disconnect_client(websocket)
 
 # --- Historical Data & Synthetic Pricing ---
+class LatestPricesRequest(BaseModel):
+    gConIds: List[str]
+
+@app.post("/api/latest_prices")
+async def get_latest_prices(req: LatestPricesRequest = Body(...)):
+    if not req.gConIds:
+        return {}
+        
+    client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+    query_api = client.query_api()
+    bucket = BUCKET_PRICES
+    measurement = "precios"
+    
+    id_list = '", "'.join(req.gConIds)
+    query = f'''
+    from(bucket: "{bucket}")
+      |> range(start: -5d)
+      |> filter(fn: (r) => r["_measurement"] == "{measurement}")
+      |> filter(fn: (r) => r["_field"] == "LAST")
+      |> filter(fn: (r) => contains(value: r["symbol"], set: ["{id_list}"]))
+      |> last()
+    '''
+    
+    try:
+        result = await asyncio.to_thread(query_api.query, org=INFLUX_ORG, query=query)
+        prices = {}
+        for table in result:
+            for record in table.records:
+                sym = record.values.get("symbol")
+                val = record.get_value()
+                if sym and val is not None:
+                    prices[sym] = val
+        return prices
+    except Exception as e:
+        logger.error(f"Error fetching latest prices baseline: {e}")
+        return {}
+    finally:
+        client.close()
+
 class LegParam(BaseModel):
     conId: int
     ratio: int

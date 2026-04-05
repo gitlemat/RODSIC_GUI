@@ -193,3 +193,12 @@ export async function fetchSpreadAnalysis(product, distance) {
     return res.json();
 }
 
+export async function requestLatestPrices(gConIds) {
+    const res = await fetch(`${API_BASE}/latest_prices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gConIds })
+    });
+    return res.json();
+}
+

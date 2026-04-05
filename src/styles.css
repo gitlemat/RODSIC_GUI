@@ -115,6 +115,24 @@ body {
 .nav-links {
     list-style: none;
     flex-grow: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 0.5rem; /* space for scrollbar */
+}
+
+/* Scrollbar styling for nav-links (webkit) */
+.nav-links::-webkit-scrollbar {
+    width: 4px;
+}
+.nav-links::-webkit-scrollbar-track {
+    background: transparent;
+}
+.nav-links::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+.nav-links::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .nav-links li {
@@ -142,6 +160,80 @@ body {
     background: rgba(0, 122, 255, 0.15);
     color: var(--accent-blue);
     font-weight: 600;
+}
+
+/* Sidebar Groups */
+.nav-links > li.nav-group {
+    display: block;
+    padding: 0;
+    cursor: default;
+    background: transparent;
+}
+
+.nav-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    border-radius: 12px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.nav-group-header .header-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.nav-group-header:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}
+
+.group-chevron {
+    transition: transform 0.3s ease;
+    width: 16px !important;
+    height: 16px !important;
+}
+
+.nav-group.open .group-chevron {
+    transform: rotate(180deg);
+}
+
+.nav-group-links {
+    list-style: none;
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.4s ease-out;
+    padding-left: 1.5rem; /* Indentation for nested items */
+}
+
+.nav-group.open .nav-group-links {
+    max-height: 400px;
+}
+
+/* Ensure standalone tabs act normal */
+.nav-links > li.standalone-tab {
+    display: flex;
+}
+
+.nav-spacer {
+    flex-grow: 1;
+}
+
+/* Collapsed adjustments */
+.sidebar.collapsed .nav-group-header span,
+.sidebar.collapsed .nav-group-header .group-chevron,
+.sidebar.collapsed .nav-group-links span {
+    display: none;
+}
+
+.sidebar.collapsed .nav-group-links {
+    padding-left: 0;
 }
 
 .account-summary-mini {

@@ -51,6 +51,11 @@ window.handleWatchlistInput = handleWatchlistInput;
 window.loadSettings = loadSettings;
 window.saveGuiSettings = saveGuiSettings;
 
+window.toggleNavGroup = (headerEl) => {
+    const groupLi = headerEl.parentElement;
+    groupLi.classList.toggle('open');
+};
+
 // --- CustomEvent Listeners for WS Interactivity ---
 window.addEventListener('ws:market', (e) => {
     const { gConId, price, tickType, timestamp } = e.detail;
@@ -280,7 +285,7 @@ function initApp() {
         pollHealth();
         setInterval(pollHealth, 5000);
 
-        const navLinks = document.querySelectorAll('.nav-links li');
+        const navLinks = document.querySelectorAll('.nav-links li[data-tab]');
         navLinks.forEach(tab => {
             tab.addEventListener('click', () => {
                 navLinks.forEach(t => t.classList.remove('active'));
